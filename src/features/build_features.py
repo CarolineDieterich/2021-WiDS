@@ -61,7 +61,7 @@ class DataPreparation:
 if __name__ == "__main__":
     base_path = str(Path(__file__).resolve().parents[2])
 
-    data_preparer = DataPreparation(input_path=base_path + '/data',
+    data_preparer = DataPreparation(input_path=base_path + '/data/raw',
                                     output_dir=base_path + '/data/prepared_data')
     data_preparer.run()
 
