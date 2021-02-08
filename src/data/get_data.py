@@ -4,7 +4,7 @@ import zipfile
 
 def load_competition_data(path, dataname):
     kaggle.api.authenticate()
-    kaggle.api.competition_download_files(dataname,path=path)
+    kaggle.api.competition_download_files(dataname, path=path)
     unzip_data(path, dataname + '.zip')
 
 
