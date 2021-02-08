@@ -9,6 +9,7 @@ Modeling_utils.py: our own functions that are needed in various modeling scripts
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold
 
 
 def create_target(train_data: pd.DataFrame) -> pd.DataFrame:
@@ -31,3 +32,8 @@ def create_train_test_split(features: pd.DataFrame, target: pd.DataFrame,
                                                         random_state=42,
                                                         stratify=True)
     return X_train, X_test, y_train, y_test
+
+
+def create_cv_stratified_split(folds, X, Y):
+    skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=42)
+    return skf.split(X, Y)
