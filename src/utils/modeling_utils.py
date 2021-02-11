@@ -33,7 +33,19 @@ def create_train_test_split(features: pd.DataFrame, target: pd.DataFrame,
                                                         stratify=True)
     return X_train, X_test, y_train, y_test
 
-
 def create_cv_stratified_split(folds, X, Y):
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=42)
     return skf.split(X, Y)
+
+
+def save_and_export_predictions(predictions: np.array):
+    """
+    Export predictions to csv format for submission
+
+    Args:
+        predictions:
+
+    Returns:
+
+    """
+    pass
