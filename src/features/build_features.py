@@ -10,6 +10,7 @@ import typing as th
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 
 
 class DataPreparation:
@@ -22,21 +23,45 @@ class DataPreparation:
         self.test_data = pd.read_csv(str(self.input_path) + '/UnlabeledWiDS2021.csv')
         self.data_dictionary = pd.read_csv(str(self.input_path) + '/DataDictionaryWiDS2021.csv')
 
-    def drop_unnecessary_cols(self) -> None:
-        self.train_data.drop("Unnamed: 0", axis=1, inplace=True)
-        self.train_data.drop("encounter_id", axis=1, inplace=True)
-        self.train_data.drop("hospital_id", axis=1, inplace=True)
-        self.train_data.drop("icu_id", axis=1, inplace=True)
-        self.train_data.drop("icu_stay_type", axis=1, inplace=True)
-        self.test_data.drop("Unnamed: 0", axis=1, inplace=True)
-        self.test_data.drop("encounter_id", axis=1, inplace=True)
-        self.test_data.drop("hospital_id", axis=1, inplace=True)
-        self.test_data.drop("icu_id", axis=1, inplace=True)
-        self.test_data.drop("icu_stay_type", axis=1, inplace=True)
+    def drop_unnecessary_cols(self, cols_to_drop: th.List) -> None:
+        self.train_data.drop(cols_to_drop, axis=1, inplace=True)
+        self.test_data.drop(cols_to_drop, axis=1, inplace=True)
 
     def create_dummy_cols(self, categorical_cols: th.List) -> None:
         self.train_data = pd.get_dummies(self.train_data, columns=categorical_cols)
         self.test_data = pd.get_dummies(self.test_data, columns=categorical_cols)
+
+    def remove_invalid_rows(self) -> None:
+        """Remove rows where age is 0"""
+        self.train_data = self.train_data[self.train_data .age >= 16].reset_index(drop=True)
+        self.test_data = self.test_data[self.test_data.age >= 16].reset_index(drop=True)
+
+    def remove_cols_with_nans(self, missing_perc: float) -> None:
+        "Remove cols with over xx% missing data"
+        cols_to_keep = self.train_data.columns[self.train_data.isnull().mean() < missing_perc]
+        self.train_data = self.train_data[cols_to_keep]
+        self.test_data = self.train_data[cols_to_keep]
+
+    def remove_cols_colinear(self, correlation_thresh) -> None:
+        corr_matrix = self.train_data.corr().abs()
+        # Select upper triangle of correlation matrix
+        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
+        # Find features with correlation greater than thresh
+        to_drop = [column for column in upper.columns if any(upper[column] > correlation_thresh)]
+        # Drop features
+        self.train_data.drop(to_drop, axis=1, inplace=True)
+        self.test_data.drop(to_drop, axis=1, inplace=True)
+
+    def add_flag_measurements_first_hour(self) -> None:
+        """
+        If a measurement was done within first hour, set flag
+        If any of cols that start with h1 not empty, add flag
+        """
+        first_hour_cols = self.train_data.filter(like='h1').columns
+        # Columns which have at least one value measure within first hour
+        first_hour_measurement_present_rows = self.train_data.loc[self.train_data[first_hour_cols].isnull().sum(axis=1)
+                                                                  /len(first_hour_cols)!=1]
+        # FIXME decide whether flag is useful feature or not
 
     # FIXME add further functions for feature engineering here
     def further_feature_engineering(self):
@@ -47,14 +72,22 @@ class DataPreparation:
         self.test_data.to_csv(Path(self.output_dir + '/test_data.csv'), sep=';')
 
     def run(self):
-        self.drop_unnecessary_cols()
+        self.drop_unnecessary_cols(['Unnamed: 0',
+                                    'encounter_id',
+                                    'hospital_id',
+                                    'icu_id',
+                                    'icu_stay_type',
+                                     'readmission_status'])
         self.create_dummy_cols(['elective_surgery',
                                 'ethnicity',
                                 'gender',
                                 'hospital_admit_source',
                                 'icu_admit_source',
-                                'icu_type',
-                                'readmission_status'])
+                                'icu_type'])
+        self.remove_invalid_rows()
+        # self.add_flag_measurements_first_hour()
+        self.remove_cols_with_nans(missing_perc=0.8)
+        self.remove_cols_colinear(correlation_thresh=0.95)
         self.save_preprocessed_files()
 
 
@@ -64,4 +97,3 @@ if __name__ == "__main__":
     data_preparer = DataPreparation(input_path=base_path + '/data/raw',
                                     output_dir=base_path + '/data/prepared_data')
     data_preparer.run()
-
