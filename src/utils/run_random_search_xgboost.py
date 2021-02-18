@@ -25,6 +25,9 @@ def parseOpts(args):
 
 
 def start_xgboost_random_search(folds, params_file, combinations):
+    """
+    starts random search with XGBoost classifier and saves results as json
+    """
     base_path = str(Path(__file__).resolve().parents[2])
 
     # initialize classifier
