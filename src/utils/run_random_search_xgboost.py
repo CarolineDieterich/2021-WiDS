@@ -5,6 +5,7 @@ from xgboost import XGBClassifier
 from pathlib import Path
 import sys
 import json
+from datetime import datetime
 from random_search import (
     RandomSearch
 )
@@ -43,7 +44,7 @@ def start_xgboost_random_search(params_file, combinations):
     result = random_search.run(classifier, params, combinations)
 
     # write results to file
-    with open(base_path + '/data/params/result_' + params_file, 'w') as f:
+    with open(base_path + '/data/params/result_' + datetime.now().strftime('%Y-%m-%d_%H-%M') + '_' + str(combinations) + '_' + params_file, 'w') as f:  # noqa
         json.dump(result, f)
 
 

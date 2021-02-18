@@ -44,7 +44,5 @@ class RandomSearch():
 
         return {
             "param_combinations": param_combinations,
-            "all_results": random_search.cv_results_,
-            "best_estimator": random_search.best_estimator_,
-            "best_hyperparameters": random_search.best_params_
+            "best_hyperparameters": str(random_search.best_params_)
         }
