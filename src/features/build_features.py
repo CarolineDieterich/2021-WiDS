@@ -324,8 +324,8 @@ class DataPreparation:
         self.test_data.drop(to_drop, axis = 1, inplace = True)
         
     def save_preprocessed_files(self):
-        self.train_data.to_csv(Path(self.output_dir + '/train_data.csv'), sep=';')
-        self.test_data.to_csv(Path(self.output_dir + '/test_data.csv'), sep=';')
+        self.train_data.to_csv(Path(self.output_dir + '/train_data.csv'), sep=';', index=False)
+        self.test_data.to_csv(Path(self.output_dir + '/test_data.csv'), sep=';', index=False)
 
     # FIXME check order
     def run(self):
@@ -366,7 +366,7 @@ class DataPreparation:
 
         self.remove_cols_with_nans(missing_perc=0.8)
         self.remove_cols_colinear(correlation_thresh=0.95)
-        
+
         self.train_data = self.create_shuffled_features(self.train_data)
         self.test_data = self.create_shuffled_features(self.test_data)
         
@@ -374,8 +374,11 @@ class DataPreparation:
         
         #featu_int, featu_float, featu_obj = self.impute_features()
         #self.scale_features(featu_float)
-        print(len(self.train_data.columns))
-        print(len(self.test_data.columns))
+
+        print(list(self.train_data.columns))
+        print(list(self.test_data.columns))
+        print(list(set(self.train_data.columns) - set(self.test_data.columns)))
+
         self.save_preprocessed_files()
 
 
