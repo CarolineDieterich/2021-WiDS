@@ -15,7 +15,9 @@ import numpy as np
 
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import QuantileTransformer
+from sklearn.model_selection import train_test_split, GridSearchCV, KFold
 
+import lightgbm as lgbm
 
 class DataPreparation:
 
@@ -118,7 +120,34 @@ class DataPreparation:
         self.test_data['bmi_ok'] = bmi_ok(self.test_data)
         self.test_data['bmi_classes_array'] = bmi_classes(self.test_data)
 
+    def fill_in_default_na(self):
+        self.train_data["gender"] = self.train_data["gender"].fillna("Unknown")
+        self.train_data["ethnicity"] = self.train_data["gender"].fillna("Other/Unknown")
 
+        self.test_data["gender"] = self.test_data["gender"].fillna("Unknown")
+        self.test_data["ethnicity"] = self.test_data["gender"].fillna("Other/Unknown")
+        
+    def generate_range_and_mean_from_labs_and_vitals(self):
+        vitals = self.data_dictionary[self.data_dictionary["Category"]=="vitals"]["Variable Name"]
+        labs = self.data_dictionary[self.data_dictionary["Category"]=="labs"]["Variable Name"]
+        
+        for v in vitals:
+            v = v[3:-4]
+            self.train_data[f'd1_{v}_range'] = self.train_data[f'd1_{v}_max'] - self.train_data[f'd1_{v}_min']
+            self.train_data[f'd1_{v}_mean'] = (self.train_data[f'd1_{v}_max'] + self.train_data[f'd1_{v}_min']) / 2
+        
+            self.test_data[f'd1_{v}_range'] = self.test_data[f'd1_{v}_max'] - self.test_data[f'd1_{v}_min']
+            self.test_data[f'd1_{v}_mean'] = (self.test_data[f'd1_{v}_max'] + self.test_data[f'd1_{v}_min']) / 2
+            
+        for v in labs:
+            v = v[3:-4]
+            self.train_data[f'd1_{v}_range'] = self.train_data[f'd1_{v}_max'] - self.train_data[f'd1_{v}_min']
+            self.train_data[f'd1_{v}_mean'] = (self.train_data[f'd1_{v}_max'] + self.train_data[f'd1_{v}_min']) / 2
+        
+            self.test_data[f'd1_{v}_range'] = self.test_data[f'd1_{v}_max'] - self.test_data[f'd1_{v}_min']
+            self.test_data[f'd1_{v}_mean'] = (self.test_data[f'd1_{v}_max'] + self.test_data[f'd1_{v}_min']) / 2
+
+        
     # TODO try mice etc
     def impute_features(self):
 
@@ -153,6 +182,50 @@ class DataPreparation:
         self.test_data[featu_obj] = imp_simp.transform(self.test_data[featu_obj])
 
         return featu_int, featu_float, featu_obj
+        
+    def merge_apache_and_d_1_max(self):
+        'Merge values from Apache Score and d_1_max as they measure the same.'  
+        apache_cols = self.train_data.columns[self.train_data.columns.str.contains('apache')]
+        apache_cols = [c.split('_apache')[0] for c in apache_cols] 
+
+        vital_cols = self.train_data.columns[self.train_data.columns.str.startswith('d1') & self.train_data.columns.str.contains('_max')]
+        vital_cols = [(c.split('d1_')[1]).split('_max')[0] for c in vital_cols]
+
+        common_cols = [c for c in apache_cols if c in vital_cols]
+        for c in common_cols:
+            if c not in ['resprate', 'temp']:
+                # Fill empty d1_..._max column from available ..._apache column
+                self.train_data[f"d1_{c}_max"] = np.where((self.train_data[f"d1_{c}_max"].isna() 
+                                                    & self.train_data[f"{c}_apache"].notna()), 
+                                                   self.train_data[f"{c}_apache"], 
+                                                   self.train_data[f"d1_{c}_max"])
+                
+                self.test_data[f"d1_{c}_max"] = np.where((self.test_data[f"d1_{c}_max"].isna() 
+                                                   & self.test_data[f"{c}_apache"].notna()), 
+                                                   self.test_data[f"{c}_apache"], 
+                                                   self.test_data[f"d1_{c}_max"])
+                # Drop ..._apache column
+                self.train_data.drop(f"{c}_apache", axis=1, inplace=True)
+                self.test_data.drop(f"{c}_apache", axis=1, inplace=True)
+    
+            
+    def generate_features_indicating_that_na(self):
+        vitals = self.data_dictionary[self.data_dictionary["Category"]=="vitals"]["Variable Name"]
+        labs = self.data_dictionary[self.data_dictionary["Category"]=="labs"]["Variable Name"]
+        
+        for v in vitals:
+            self.train_data[v+"_na"] =self.train_data[v].isna()
+            self.test_data[v+"_na"]  =self.test_data[v].isna()
+        
+        for l in labs:
+            self.train_data[l+"_na"] =self.train_data[l].isna()
+            self.test_data[l+"_na"]  =self.test_data[l].isna()
+        
+        #Track where height and weight were missing
+        self.train_data["height_na"] = self.train_data["height"].isna() 
+        self.test_data["height_na"] = self.test_data["height"].isna() 
+        self.train_data["weight_na"] = self.train_data["weight"].isna()  
+        self.test_data["weight_na"] = self.test_data["weight"].isna()  
 
     def scale_features(self, featu_float) -> None:
         qt = QuantileTransformer(n_quantiles=100, random_state=0, output_distribution="normal")
@@ -190,24 +263,92 @@ class DataPreparation:
 
         self.train_data['comorbities_count'] = self.train_data[comorbidities_count_list].sum(axis=1)
         self.test_data['comorbities_count'] = self.test_data[comorbidities_count_list].sum(axis=1)
+        
+    def remove_features_with_zero_importance_in_small_LGBM(self):
+        train_x = self.train_data.drop("diabetes_mellitus", axis = 1)
+        train_y = self.train_data["diabetes_mellitus"]
+        params = {
+                  'bagging_fraction': 1,
+                  'bagging_freq': 40,
+                  'bagging_seed': 11,
+                  'boosting_type': 'gbdt',  # rf, dart, gbdt
+                  'colsample_bytree': 0.2,
+                  'device_type': 'cpu',
+                  'feature_fraction': 0.5,
+                  'lambda_l1': 0,
+                  'lambda_l2': 0,
+                  'learning_rate': 0.01,
+                  'max_bin': 50,
+                  'max_depth': 7,  # NOTE auf jeden Fall für Gridsearch verwenden
+                  'metric': 'auc',
+                  'min_child_samples': 20,
+                  'min_data_in_leaf': 100,  # NOTE auf jeden Fall für Gridsearch verwenden
+                  'min_data_in_bin': 3,
+                  'num_leaves': 80,  # NOTE auf jeden Fall für Gridsearch verwenden (in docs schauen --> max_depth abhängigkeit)
+                  'objective': 'binary',
+                  'reg_alpha': 0.2,
+                  'reg_lambda': 1,
+                  'seed': 42,
+                  }
+        model = lgbm.LGBMClassifier()
+        model.set_params(**params)
+        
+        train_features, valid_features, train_labels, valid_labels = train_test_split(train_x, 
+                                                                              train_y, 
+                                                                              test_size = 0.15, 
+                                                                              stratify=train_y)
 
+        # Train the model with early stopping
+        model.fit(train_features, train_labels, eval_metric = 'auc',
+                                  eval_set = [(valid_features, valid_labels)],
+                                  early_stopping_rounds = 100, verbose = -1)
+
+        feature_importance_values = model.feature_importances_ 
+
+        feature_names = list(train_x.columns)
+
+        feature_importances = pd.DataFrame({'feature': feature_names, 'importance': feature_importance_values})
+
+        # Sort features according to importance
+        feature_importances = feature_importances.sort_values('importance', ascending = False).reset_index(drop = True)
+        
+        # Normalize the feature importances to add up to one
+        feature_importances['normalized_importance'] = feature_importances['importance'] / feature_importances['importance'].sum()
+        feature_importances['cumulative_importance'] = np.cumsum(feature_importances['normalized_importance'])
+        
+        # Extract the features with zero importance
+        record_zero_importance = feature_importances[feature_importances['importance'] == 0.0]
+
+        to_drop = list(record_zero_importance['feature'])
+        self.train_data.drop(to_drop, axis = 1, inplace = True)
+        self.test_data.drop(to_drop, axis = 1, inplace = True)
+        
     def save_preprocessed_files(self):
         self.train_data.to_csv(Path(self.output_dir + '/train_data.csv'), sep=';')
         self.test_data.to_csv(Path(self.output_dir + '/test_data.csv'), sep=';')
 
     # FIXME check order
     def run(self):
+        # Drop invalid and unnecessary
         self.drop_unnecessary_cols(['Unnamed: 0',
                                     'encounter_id',
                                     'hospital_id',
                                     'icu_id',
-                                     'readmission_status'])
+                                      'readmission_status'])
+           
         self.remove_invalid_rows()
-        # self.add_flag_measurements_first_hour()
-        self.train_data = self.create_shuffled_features(self.train_data)
-        self.test_data = self.create_shuffled_features(self.test_data)
-        self.create_bmi_categories()
 
+        #Feature Imputation
+        # self.add_flag_measurements_first_hour()
+        self.create_bmi_categories()
+        self.count_comorbidites()
+        self.merge_apache_and_d_1_max()
+        self.fill_in_default_na()
+        self.negative_to_na()
+        self.generate_features_indicating_that_na()
+        self.generate_range_and_mean_from_labs_and_vitals()
+        
+        # #Prepare data basics
         self.create_dummy_cols(['elective_surgery',
                                 'ethnicity',
                                 'gender',
@@ -217,24 +358,25 @@ class DataPreparation:
                                 'icu_stay_type',
                                 'bmi_ok',
                                 'bmi_classes_array'])
-
         self.drop_cols_not_in_test(['hospital_admit_source_ICU',
                                     'hospital_admit_source_Other',
                                     'hospital_admit_source_PACU',
                                     'hospital_admit_source_Observation',
                                     'hospital_admit_source_Acute Care/Floor'])
 
-        self.negative_to_na()
-        self.count_comorbidites()
-
         self.remove_cols_with_nans(missing_perc=0.8)
         self.remove_cols_colinear(correlation_thresh=0.95)
+        
+        self.train_data = self.create_shuffled_features(self.train_data)
+        self.test_data = self.create_shuffled_features(self.test_data)
+        
+        self.remove_features_with_zero_importance_in_small_LGBM()
+        
+        #featu_int, featu_float, featu_obj = self.impute_features()
+        #self.scale_features(featu_float)
 
-        # featu_int, featu_float, featu_obj = self.impute_features()
-        # self.scale_features(featu_float)
-
-        print(self.train_data.columns)
-        print(self.test_data.columns)
+        print(len(self.train_data.columns))
+        print(len(self.test_data.columns))
         self.save_preprocessed_files()
 
 
