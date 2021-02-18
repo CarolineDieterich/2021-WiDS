@@ -6,6 +6,7 @@ Prepare_data.py: Currently basic cleaning and preprocessing to get the data into
 # FIXME add more advanced feature engineering steps to improve model performance
 """
 
+import bisect
 import typing as th
 from pathlib import Path
 
@@ -74,6 +75,51 @@ class DataPreparation:
         first_hour_measurement_present_rows = self.train_data.loc[self.train_data[first_hour_cols].isnull().sum(axis=1)
                                                                   /len(first_hour_cols)!=1]
 
+    def create_bmi_categories(self):
+        optimal_bmi_range_min_ages = [25, 35, 45, 55, 65]
+        optimal_bmi_ranges = [(19, 24), (20, 25), (21, 26), (22, 27), (23, 28), (24, 29)]
+
+        bmi_categories = ["underweight", "normal weight", "overweight", "obesity", "strong obesity"]
+
+        def bmi_ok(data):
+            bmi_ok = []
+            for idx, row in data.iterrows():
+                age = row['age']
+                bmi = row['bmi']
+                # gender = np.where()
+                optimal_bmi_range = optimal_bmi_ranges[bisect.bisect_left(optimal_bmi_range_min_ages, age)]
+
+                if bmi >= optimal_bmi_range[0] and bmi <= optimal_bmi_range[1]:
+                    bmi_ok.append(1)
+                else:
+                    bmi_ok.append(0)
+            return np.asarray(bmi_ok)
+
+        def bmi_classes(data):
+            bmi_classes = []
+            for idx, row in data.iterrows():
+                age = row['age']
+                bmi = row['bmi']
+
+                if row['gender'] == 'M':  # 1
+                    bmi_cat_thresholds = [20, 26, 31, 41]
+
+                elif row['gender'] == 'F':  # 0
+                    bmi_cat_thresholds = [19, 25, 31, 41]
+
+                bmi_category = bmi_categories[bisect.bisect_left(bmi_cat_thresholds, bmi)]
+                bmi_classes.append(bmi_category)
+            return np.asarray(bmi_classes)
+
+        # bmi_ok_array = np.asarray(bmi_ok)
+        # bmi_classes_array = np.asarray(bmi_classes)
+        self.train_data['bmi_ok'] = bmi_ok(self.train_data)
+        self.train_data['bmi_classes_array'] = bmi_classes(self.train_data)
+        self.test_data['bmi_ok'] = bmi_ok(self.test_data)
+        self.test_data['bmi_classes_array'] = bmi_classes(self.test_data)
+
+
+    # TODO try mice etc
     def impute_features(self):
 
         featu_int = []
@@ -123,6 +169,28 @@ class DataPreparation:
             return pd.Series([a_bmi, a_glu, bmi_glu], index=['age_bmi', 'a_glu', 'bmi_glu'])
         return data.join(data.apply(create_features, axis=1))
 
+    def negative_to_na(self):
+        # code variables that are -1 as na
+        num = self.train_data._get_numeric_data()
+        num[num < 0] = None
+
+        num_unl = self.test_data._get_numeric_data()
+        num_unl[num_unl < 0] = None
+
+    def count_comorbidites(self):
+        comorbidities_count_list = [
+            'aids',
+            'cirrhosis',
+            'hepatic_failure',
+            'immunosuppression',
+            'leukemia',
+            'lymphoma',
+            'solid_tumor_with_metastasis'
+        ]
+
+        self.train_data['comorbities_count'] = self.train_data[comorbidities_count_list].sum(axis=1)
+        self.test_data['comorbities_count'] = self.test_data[comorbidities_count_list].sum(axis=1)
+
     def save_preprocessed_files(self):
         self.train_data.to_csv(Path(self.output_dir + '/train_data.csv'), sep=';')
         self.test_data.to_csv(Path(self.output_dir + '/test_data.csv'), sep=';')
@@ -136,25 +204,37 @@ class DataPreparation:
                                      'readmission_status'])
         self.remove_invalid_rows()
         # self.add_flag_measurements_first_hour()
-        self.remove_cols_with_nans(missing_perc=0.75)
-        self.remove_cols_colinear(correlation_thresh=0.95)
         self.train_data = self.create_shuffled_features(self.train_data)
         self.test_data = self.create_shuffled_features(self.test_data)
+        self.create_bmi_categories()
+
         self.create_dummy_cols(['elective_surgery',
                                 'ethnicity',
-                                # 'ethnicity_gender',
                                 'gender',
                                 'hospital_admit_source',
                                 'icu_admit_source',
                                 'icu_type',
-                                'icu_stay_type',])
+                                'icu_stay_type',
+                                'bmi_ok',
+                                'bmi_classes_array'])
+
         self.drop_cols_not_in_test(['hospital_admit_source_ICU',
                                     'hospital_admit_source_Other',
                                     'hospital_admit_source_PACU',
                                     'hospital_admit_source_Observation',
                                     'hospital_admit_source_Acute Care/Floor'])
-        featu_int, featu_float, featu_obj = self.impute_features()
-        self.scale_features(featu_float)
+
+        self.negative_to_na()
+        self.count_comorbidites()
+
+        self.remove_cols_with_nans(missing_perc=0.8)
+        self.remove_cols_colinear(correlation_thresh=0.95)
+
+        # featu_int, featu_float, featu_obj = self.impute_features()
+        # self.scale_features(featu_float)
+
+        print(self.train_data.columns)
+        print(self.test_data.columns)
         self.save_preprocessed_files()
 
 
