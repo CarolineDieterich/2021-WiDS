@@ -374,7 +374,6 @@ class DataPreparation:
         
         #featu_int, featu_float, featu_obj = self.impute_features()
         #self.scale_features(featu_float)
-
         print(len(self.train_data.columns))
         print(len(self.test_data.columns))
         self.save_preprocessed_files()
