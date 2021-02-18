@@ -2,6 +2,7 @@ from sklearn.model_selection import RandomizedSearchCV
 from xgboost import XGBClassifier
 import pandas as pd
 from pathlib import Path
+import json
 
 from modeling_utils import (
     create_cv_stratified_split,
@@ -11,7 +12,7 @@ from modeling_utils import (
 
 
 class RandomSearch():
-    def __init__(self, input_path, folds=3):
+    def __init__(self, input_path, folds=2):
         self.folds = folds
         self.train_data = pd.read_csv(
             str(input_path) + '/train_data.csv',
@@ -41,26 +42,9 @@ class RandomSearch():
         print('\n Best hyperparameters:')
         print(random_search.best_params_)
 
-
-if __name__ == "__main__":
-    base_path = str(Path(__file__).resolve().parents[2])
-
-    classifier = XGBClassifier(
-        learning_rate=0.02,
-        n_estimators=600,
-        objective='binary:logistic'
-    )
-
-    # TODO: Load data from config file
-    params = {
-        'min_child_weight': [1, 5, 10],
-        'gamma': [0.5, 1, 1.5, 2, 5],
-        'subsample': [0.6, 0.8, 1.0],
-        'colsample_bytree': [0.6, 0.8, 1.0],
-        'max_depth': [3, 4, 5]
+        return {
+            "param_combinations": param_combinations,
+            "all_results": random_search.cv_results_,
+            "best_estimator": random_search.best_estimator_,
+            "best_hyperparameters": random_search.best_params_
         }
-
-    param_combinations = 1
-
-    random_search = RandomSearch(input_path=base_path + '/data/prepared_data')
-    random_search.run(classifier, params, param_combinations)
