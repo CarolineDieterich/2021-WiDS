@@ -39,7 +39,7 @@ def start_xgboost_random_search(folds, params_file, combinations):
         params = json.load(f)
 
     # add path to preprocessed data
-    random_search = RandomSearch(input_path=base_path + '/data/prepared_data', folds)  # noqa
+    random_search = RandomSearch(input_path=base_path + '/data/prepared_data', folds = folds)  # noqa
 
     # start random search
     result = random_search.run(classifier, params, combinations)
