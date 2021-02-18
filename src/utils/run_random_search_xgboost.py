@@ -18,12 +18,13 @@ def parseOpts(args):
     parser = OptionParser()
     parser.add_option("--params_file", action="store", type="string", dest="params_file")  # noqa
     parser.add_option("--combinations", action="store", type="int", dest="combinations")  # noqa
+    parser.add_option("--folds", action="store", type="int", dest="folds")  # noqa
 
     (options, args) = parser.parse_args(args)
     return options
 
 
-def start_xgboost_random_search(params_file, combinations):
+def start_xgboost_random_search(folds, params_file, combinations):
     base_path = str(Path(__file__).resolve().parents[2])
 
     # initialize classifier
@@ -38,7 +39,7 @@ def start_xgboost_random_search(params_file, combinations):
         params = json.load(f)
 
     # add path to preprocessed data
-    random_search = RandomSearch(input_path=base_path + '/data/prepared_data')
+    random_search = RandomSearch(input_path=base_path + '/data/prepared_data', folds)  # noqa
 
     # start random search
     result = random_search.run(classifier, params, combinations)
@@ -51,4 +52,4 @@ def start_xgboost_random_search(params_file, combinations):
 if __name__ == '__main__':
     args = sys.argv[1:]
     o = parseOpts(args)
-    start_xgboost_random_search(o.params_file, o.combinations)
+    start_xgboost_random_search(o.folds, o.params_file, o.combinations)
