@@ -71,7 +71,7 @@ def train_tpot_classifier(X_train, X_test, y_train, y_test):
     # perform search
     pipeline_optimizer.fit(X_train, y_train)
 
-    print(pipeline_optimizer.score(X_test, y_test.values))
+    print(pipeline_optimizer.score(X_test, y_test))
 
     # export the best model
     pipeline_optimizer.export('tpot_digits_pipeline.py')

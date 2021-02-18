@@ -13,3 +13,13 @@ Clone this repo
 # Modeling
 - Helper functions, e.g. to create features and targets and train test split are in `src/utils/modeling_utils.py` 
 - Prepared data can be used for modeling
+
+# Random Search
+1. Define the parameter option in a json file in data/params/
+2. Call the script with:
+- the file name
+- the number of parameter combinations that should be tested
+- and the number of cross-validation splits
+```
+python src/utils/run_random_search_xgboost.py --folds 2 --params_file params_xgboost.json --combinations 1
+```
