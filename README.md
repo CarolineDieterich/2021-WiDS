@@ -3,10 +3,13 @@
 Repo for WiDS datathon 2021, consisting of data preparation and modeling scripts as well as helper tools, notebooks, and more.
 
 # Get started
-Clone this repo
+- Clone this repo
+- Activate your conda environment e.g. `conda activate kaggle`
+- Install dependencies `pip install -r requirements.txt`
+
 
 # Prepare data
-- `python3 build_features.py`
+- `python3 src/features/build_features.py`
 - Prepared_data will be saved in `data/prepared_data/` and can be used directly for modeling
 - Latest version should always be run before starting a new modeling run in order to ensure that the latest preprocessed data is used 
 
