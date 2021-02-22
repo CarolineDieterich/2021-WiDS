@@ -340,13 +340,13 @@ class DataPreparation:
 
         #Feature Imputation
         # self.add_flag_measurements_first_hour()
-        self.create_bmi_categories()
-        self.count_comorbidites()
-        self.merge_apache_and_d_1_max()
-        self.fill_in_default_na()
-        self.negative_to_na()
-        self.generate_features_indicating_that_na()
-        self.generate_range_and_mean_from_labs_and_vitals()
+        #self.create_bmi_categories()
+        #self.count_comorbidites()
+        #self.merge_apache_and_d_1_max()
+        #self.fill_in_default_na()
+        #self.negative_to_na()
+        #self.generate_features_indicating_that_na()
+        #self.generate_range_and_mean_from_labs_and_vitals()
         
         # #Prepare data basics
         self.create_dummy_cols(['elective_surgery',
@@ -355,22 +355,20 @@ class DataPreparation:
                                 'hospital_admit_source',
                                 'icu_admit_source',
                                 'icu_type',
-                                'icu_stay_type',
-                                'bmi_ok',
-                                'bmi_classes_array'])
+                                'icu_stay_type'])
         self.drop_cols_not_in_test(['hospital_admit_source_ICU',
                                     'hospital_admit_source_Other',
                                     'hospital_admit_source_PACU',
                                     'hospital_admit_source_Observation',
                                     'hospital_admit_source_Acute Care/Floor'])
 
-        self.remove_cols_with_nans(missing_perc=0.8)
-        self.remove_cols_colinear(correlation_thresh=0.95)
+        #self.remove_cols_with_nans(missing_perc=0.8)
+        #self.remove_cols_colinear(correlation_thresh=0.95)
 
         self.train_data = self.create_shuffled_features(self.train_data)
         self.test_data = self.create_shuffled_features(self.test_data)
         
-        self.remove_features_with_zero_importance_in_small_LGBM()
+        #self.remove_features_with_zero_importance_in_small_LGBM()
         
         #featu_int, featu_float, featu_obj = self.impute_features()
         #self.scale_features(featu_float)

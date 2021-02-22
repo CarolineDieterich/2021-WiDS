@@ -1,0 +1,1 @@
+{"param_combinations": 100, "best_hyperparameters": "{'subsample_for_bin': 100000, 'subsample': 0.6, 'reg_lambda': 1, 'reg_alpha': 0.6, 'num_leaves': 150, 'n_estimators': 120, 'min_data_in_leaf': 9, 'min_child_samples': 30, 'max_depth': 9, 'learning_rate': 0.1, 'is_unbalance': False, 'colsample_bytree': 0.7, 'boosting_type': 'gbdt'}"}
